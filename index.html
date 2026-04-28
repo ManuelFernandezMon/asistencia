@@ -349,7 +349,27 @@
 <canvas id="canvasEl" style="display:none;"></canvas>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCMOsyOM8QLftX3vcfyZCMBqxViFNryReOS2LdvdLylQYtGQztBrtt423eARHvYyRPjw/exec";
+const SCRIPT_URL = "PEGA_AQUI_TU_URL_DE_GOOGLE_APPS_SCRIPT";
+
+// ── SUPABASE ──────────────────────────────────────────────
+const SB_URL = "https://ucuxfhpncjhrbgbitveg.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjdXhmaHBuY2pocmJnYml0dmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDQxMzcsImV4cCI6MjA5Mjk4MDEzN30.M7GQL5tcQbN_BG7CghZp3Ny7GFaijvFL3ZYnrV4dDys";
+
+const sbHeaders = {
+  "Content-Type": "application/json",
+  "apikey": SB_KEY,
+  "Authorization": "Bearer " + SB_KEY
+};
+
+async function sbFetch(path, options = {}) {
+  try {
+    const res = await fetch(SB_URL + "/rest/v1/" + path, {
+      ...options,
+      headers: { ...sbHeaders, ...(options.headers || {}) }
+    });
+    return res.ok ? await res.json() : null;
+  } catch(e) { return null; }
+}
 
 let CONFIG = {
   projectName: "Proyecto", projectLat: 19.4326, projectLng: -99.1332, radiusMeters: 150,
@@ -369,28 +389,59 @@ function updateClock() {
 }
 updateClock(); setInterval(updateClock, 1000);
 
-// Cargar todo
+// Cargar todo — primero intenta Supabase, si falla usa Apps Script
 async function loadAll() {
-  try {
-    const [cfgRes, empRes] = await Promise.all([
-      fetch(SCRIPT_URL + '?action=getConfig&t='    + Date.now()),
-      fetch(SCRIPT_URL + '?action=getEmployees&t=' + Date.now())
-    ]);
-    const cfgData = await cfgRes.json();
-    const empData = await empRes.json();
+  // Intentar cargar desde Supabase
+  const [sbCfg, sbEmp] = await Promise.all([
+    sbFetch("config?select=clave,valor"),
+    sbFetch("empleados?select=id,nombre,pin&activo=eq.true")
+  ]);
 
-    if (cfgData?.projectName) {
-      CONFIG.projectName  = cfgData.projectName;
-      CONFIG.projectLat   = parseFloat(cfgData.projectLat);
-      CONFIG.projectLng   = parseFloat(cfgData.projectLng);
-      CONFIG.radiusMeters = parseFloat(cfgData.radiusMeters);
+  let loadedFromSB = false;
+
+  if (sbCfg && sbCfg.length > 0) {
+    const map = {};
+    sbCfg.forEach(r => map[r.clave] = r.valor);
+    if (map.projectName) {
+      CONFIG.projectName  = map.projectName;
+      CONFIG.projectLat   = parseFloat(map.projectLat);
+      CONFIG.projectLng   = parseFloat(map.projectLng);
+      CONFIG.radiusMeters = parseFloat(map.radiusMeters);
       CONFIG.schedules    = [
-        { label: "Entrada", from: parseFloat(cfgData.entradaFrom), to: parseFloat(cfgData.entradaTo), type: "entrada" },
-        { label: "Salida",  from: parseFloat(cfgData.salidaFrom),  to: parseFloat(cfgData.salidaTo),  type: "salida"  }
+        { label: "Entrada", from: parseFloat(map.entradaFrom), to: parseFloat(map.entradaTo), type: "entrada" },
+        { label: "Salida",  from: parseFloat(map.salidaFrom),  to: parseFloat(map.salidaTo),  type: "salida"  }
       ];
+      loadedFromSB = true;
     }
-    EMPLOYEES = empData.employees || [];
-  } catch(e) { console.warn("Error cargando config"); }
+  }
+
+  if (sbEmp && sbEmp.length > 0) {
+    EMPLOYEES = sbEmp;
+    loadedFromSB = true;
+  }
+
+  // Si Supabase no tiene datos, cargar desde Apps Script
+  if (!loadedFromSB) {
+    try {
+      const [cfgRes, empRes] = await Promise.all([
+        fetch(SCRIPT_URL + '?action=getConfig&t='    + Date.now()),
+        fetch(SCRIPT_URL + '?action=getEmployees&t=' + Date.now())
+      ]);
+      const cfgData = await cfgRes.json();
+      const empData = await empRes.json();
+      if (cfgData?.projectName) {
+        CONFIG.projectName  = cfgData.projectName;
+        CONFIG.projectLat   = parseFloat(cfgData.projectLat);
+        CONFIG.projectLng   = parseFloat(cfgData.projectLng);
+        CONFIG.radiusMeters = parseFloat(cfgData.radiusMeters);
+        CONFIG.schedules    = [
+          { label: "Entrada", from: parseFloat(cfgData.entradaFrom), to: parseFloat(cfgData.entradaTo), type: "entrada" },
+          { label: "Salida",  from: parseFloat(cfgData.salidaFrom),  to: parseFloat(cfgData.salidaTo),  type: "salida"  }
+        ];
+      }
+      EMPLOYEES = empData.employees || [];
+    } catch(e) { console.warn("Error cargando config desde Apps Script"); }
+  }
 
   document.getElementById('projectName').textContent = CONFIG.projectName;
   renderPage();
@@ -575,11 +626,30 @@ async function submitRecord(type, label) {
     };
 
     try {
-      await fetch(SCRIPT_URL, {
+      // Guardar en Google Sheets (Apps Script)
+      fetch(SCRIPT_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      // Guardar en Supabase simultáneamente
+      sbFetch("asistencia", {
+        method: 'POST',
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          proyecto:  payload.proyecto,
+          nombre:    payload.nombre,
+          tipo:      payload.tipo,
+          fecha:     payload.fecha,
+          hora:      payload.hora,
+          latitud:   payload.latitud,
+          longitud:  payload.longitud,
+          distancia: payload.distancia,
+          foto_url:  null
+        })
+      });
+
       showStatus(`✅ ¡${label} registrada! Bienvenido, <strong>${employee.nombre}</strong>. ${payload.hora}`, 'success');
       btn.disabled = false;
       document.getElementById('pinInput').value   = '';
