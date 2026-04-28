@@ -626,6 +626,35 @@ async function submitRecord(type, label) {
     };
 
     try {
+      // Subir foto a Supabase Storage
+      let fotoUrl = null;
+      if (photo) {
+        const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+        const byteString = atob(base64Data);
+        const byteArray  = new Uint8Array(byteString.length);
+        for (let i = 0; i < byteString.length; i++) byteArray[i] = byteString.charCodeAt(i);
+        const blob      = new Blob([byteArray], { type: 'image/jpeg' });
+        const fileName  = `${employee.nombre}_${Date.now()}.jpg`.replace(/\s+/g, '_');
+
+        const uploadRes = await fetch(
+          `${SB_URL}/storage/v1/object/fotos-asistencia/${fileName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SB_KEY,
+              'Authorization': 'Bearer ' + SB_KEY,
+              'Content-Type': 'image/jpeg',
+              'x-upsert': 'true'
+            },
+            body: blob
+          }
+        );
+
+        if (uploadRes.ok) {
+          fotoUrl = `${SB_URL}/storage/v1/object/public/fotos-asistencia/${fileName}`;
+        }
+      }
+
       // Guardar en Google Sheets (Apps Script)
       fetch(SCRIPT_URL, {
         method: 'POST', mode: 'no-cors',
@@ -633,8 +662,8 @@ async function submitRecord(type, label) {
         body: JSON.stringify(payload)
       });
 
-      // Guardar en Supabase simultáneamente
-      sbFetch("asistencia", {
+      // Guardar en Supabase con URL de foto
+      await sbFetch("asistencia", {
         method: 'POST',
         headers: { "Prefer": "return=minimal" },
         body: JSON.stringify({
@@ -646,7 +675,7 @@ async function submitRecord(type, label) {
           latitud:   payload.latitud,
           longitud:  payload.longitud,
           distancia: payload.distancia,
-          foto_url:  null
+          foto_url:  fotoUrl
         })
       });
 
