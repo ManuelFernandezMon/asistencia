@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de Asistencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0C0C0E;
+    --surface: #131316;
+    --raised:  #1A1A1F;
+    --border:  #252529;
+    --border2: #2E2E35;
+    --text:    #EEEEF0;
+    --sub:     #8888A0;
+    --orange:  #FF4D00;
+    --orange2: #FF7A40;
+    --success: #00E090;
+    --error:   #FF3B5C;
+    --gold:    #F5C842;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Background grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(255,77,0,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* HEADER */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--orange), var(--orange2));
+    border-radius: 18px;
+    font-size: 28px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(255,77,0,0.3);
+  }
+
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+    margin-bottom: 6px;
+  }
+
+  .header p {
+    color: var(--sub);
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.3px;
+  }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 24px;
+    padding: 28px;
+    width: 100%;
+    max-width: 400px;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.5s 0.1s ease both;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+
+  /* SCHEDULE BADGE */
+  .schedule-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,77,0,0.06);
+    border: 1px solid rgba(255,77,0,0.2);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+  }
+
+  .badge-dot {
+    width: 8px; height: 8px;
+    background: var(--orange);
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px var(--orange);
+    animation: pulse 2s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.6; transform: scale(0.8); }
+  }
+
+  .badge-text .badge-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sub); font-weight: 500; }
+  .badge-text .badge-val   { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; color: var(--orange); margin-top: 1px; }
+
+  /* FIELD */
+  .field { margin-bottom: 18px; }
+
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--sub);
+    margin-bottom: 8px;
+  }
+
+  select, input[type="password"] {
+    width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 15px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+  }
+
+  select:focus, input[type="password"]:focus {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 3px rgba(255,77,0,0.12);
+  }
+
+  input[type="password"] {
+    font-size: 24px;
+    letter-spacing: 8px;
+    text-align: center;
+  }
+
+  /* CAMERA */
+  .camera-wrap {
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 4/3;
+    position: relative;
+  }
+
+  #videoEl {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(-1);
+  }
+
+  .photo-preview {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+    border-radius: 14px;
+  }
+
+  .camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .camera-corners {
+    width: 80px; height: 80px;
+    position: relative;
+  }
+
+  .camera-corners::before, .camera-corners::after,
+  .corner-br, .corner-bl {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: rgba(255,77,0,0.7);
+    border-style: solid;
+  }
+
+  .camera-corners::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .camera-corners::after  { top: 0; right: 0; border-width: 2px 2px 0 0; }
+  .corner-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+  .corner-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+
+  .camera-hint {
+    font-size: 12px;
+    color: var(--sub);
+    text-align: center;
+    margin-top: 8px;
+    font-weight: 300;
+  }
+
+  /* BUTTON */
+  .btn-main {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--orange), var(--orange2));
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(255,77,0,0.35);
+  }
+
+  .btn-main:hover  { opacity: 0.92; box-shadow: 0 6px 28px rgba(255,77,0,0.45); }
+  .btn-main:active { transform: scale(0.98); }
+  .btn-main:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+  /* STATUS */
+  .status {
+    margin-top: 16px;
+    padding: 13px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    display: none;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .status.success { background: rgba(0,224,144,0.08); color: var(--success); border: 1px solid rgba(0,224,144,0.25); display: block; }
+  .status.error   { background: rgba(255,59,92,0.08);  color: var(--error);   border: 1px solid rgba(255,59,92,0.25);  display: block; }
+  .status.loading { background: rgba(255,77,0,0.06);   color: var(--orange2); border: 1px solid rgba(255,77,0,0.2);    display: block; }
+
+  /* GEO */
+  .geo-info {
+    font-size: 12px;
+    color: var(--sub);
+    text-align: center;
+    margin-top: 20px;
+    font-weight: 300;
+    letter-spacing: 0.2px;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.5s 0.2s ease both;
+  }
+
+  /* TIMESTAMP */
+  .timestamp {
+    font-size: 11px;
+    text-align: center;
+    color: #444;
+    margin-top: 16px;
+    font-weight: 300;
+    letter-spacing: 0.3px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* CLOSED */
+  .closed-card { text-align: center; padding: 40px 16px; }
+  .closed-icon { font-size: 52px; margin-bottom: 16px; }
+  .closed-card h2 { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: var(--error); margin-bottom: 8px; }
+  .closed-card p  { color: var(--sub); font-size: 14px; line-height: 1.6; }
+  .closed-card strong { color: var(--text); }
+
+  /* LOADER */
+  .loading-card { text-align: center; padding: 48px 16px; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--orange);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .loading-card p { color: var(--sub); font-size: 13px; font-weight: 300; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand-mark">🏗️</div>
+  <h1>Registro de<br>Asistencia</h1>
+  <p id="projectName">Cargando proyecto...</p>
+</div>
+
+<div class="card" id="mainCard">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <p>Conectando con el servidor...</p>
+  </div>
+</div>
+
+<div class="geo-info" id="geoInfo" style="display:none;">
+  📍 Tu ubicación GPS será verificada antes de registrar
+</div>
+
+<div class="timestamp" id="clockDisplay"></div>
+
+<canvas id="canvasEl" style="display:none;"></canvas>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCMOsyOM8QLftX3vcfyZCMBqxViFNryReOS2LdvdLylQYtGQztBrtt423eARHvYyRPjw/exec";
+
+let CONFIG = {
+  projectName: "Proyecto", projectLat: 19.4326, projectLng: -99.1332, radiusMeters: 150,
+  schedules: [
+    { label: "Entrada", from: 6,  to: 9,  type: "entrada" },
+    { label: "Salida",  from: 16, to: 19, type: "salida"  }
+  ]
+};
+
+let EMPLOYEES   = [];
+let videoStream = null;
+
+// Reloj
+function updateClock() {
+  document.getElementById('clockDisplay').textContent =
+    new Date().toLocaleString('es-MX', { weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// Cargar todo
+async function loadAll() {
+  try {
+    const [cfgRes, empRes] = await Promise.all([
+      fetch(SCRIPT_URL + '?action=getConfig&t='    + Date.now()),
+      fetch(SCRIPT_URL + '?action=getEmployees&t=' + Date.now())
+    ]);
+    const cfgData = await cfgRes.json();
+    const empData = await empRes.json();
+
+    if (cfgData?.projectName) {
+      CONFIG.projectName  = cfgData.projectName;
+      CONFIG.projectLat   = parseFloat(cfgData.projectLat);
+      CONFIG.projectLng   = parseFloat(cfgData.projectLng);
+      CONFIG.radiusMeters = parseFloat(cfgData.radiusMeters);
+      CONFIG.schedules    = [
+        { label: "Entrada", from: parseFloat(cfgData.entradaFrom), to: parseFloat(cfgData.entradaTo), type: "entrada" },
+        { label: "Salida",  from: parseFloat(cfgData.salidaFrom),  to: parseFloat(cfgData.salidaTo),  type: "salida"  }
+      ];
+    }
+    EMPLOYEES = empData.employees || [];
+  } catch(e) { console.warn("Error cargando config"); }
+
+  document.getElementById('projectName').textContent = CONFIG.projectName;
+  renderPage();
+}
+
+function getActiveSchedule() {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  return CONFIG.schedules.find(s => h >= s.from && h < s.to) || null;
+}
+
+function getDistanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function renderPage() {
+  const schedule = getActiveSchedule();
+  if (schedule) {
+    renderForm(schedule);
+    document.getElementById('geoInfo').style.display = 'block';
+  } else {
+    renderClosed();
+  }
+}
+
+function renderForm(schedule) {
+  const empOptions = EMPLOYEES.length
+    ? EMPLOYEES.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('')
+    : '<option value="">— Sin empleados registrados —</option>';
+
+  document.getElementById('mainCard').innerHTML = `
+    <div class="schedule-badge">
+      <div class="badge-dot"></div>
+      <div class="badge-text">
+        <div class="badge-label">Ventana activa</div>
+        <div class="badge-val">${schedule.label} · ${schedule.from}:00 – ${schedule.to}:00 hrs</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">👤 Nombre</div>
+      <select id="empSelect">
+        <option value="">Selecciona tu nombre</option>
+        ${empOptions}
+      </select>
+    </div>
+
+    <div class="field">
+      <div class="field-label">🔑 PIN de acceso</div>
+      <input type="password" id="pinInput" placeholder="••••" maxlength="4" inputmode="numeric">
+    </div>
+
+    <div class="field">
+      <div class="field-label">📸 Selfie de verificación</div>
+      <div class="camera-wrap">
+        <video id="videoEl" autoplay playsinline></video>
+        <img class="photo-preview" id="photoPreview"/>
+        <div class="camera-overlay">
+          <div class="camera-corners">
+            <div class="corner-br"></div>
+            <div class="corner-bl"></div>
+          </div>
+        </div>
+      </div>
+      <div class="camera-hint" id="cameraHint">Iniciando cámara frontal...</div>
+    </div>
+
+    <button class="btn-main" id="submitBtn" onclick="submitRecord('${schedule.type}','${schedule.label}')">
+      Registrar ${schedule.label}
+    </button>
+    <div class="status" id="statusMsg"></div>
+  `;
+
+  startCamera();
+}
+
+function renderClosed() {
+  const h    = new Date().getHours() + new Date().getMinutes() / 60;
+  const next = CONFIG.schedules.filter(s => s.from > h).sort((a,b) => a.from - b.from)[0];
+  const nextMsg = next
+    ? `Próxima ventana: <strong>${next.label}</strong> a las <strong>${next.from}:00 hrs</strong>`
+    : 'No hay más ventanas disponibles hoy.';
+  document.getElementById('mainCard').innerHTML = `
+    <div class="closed-card">
+      <div class="closed-icon">🔒</div>
+      <h2>Registro Cerrado</h2>
+      <p>No hay registro disponible<br>fuera del horario permitido.</p>
+      <p style="margin-top:14px;font-size:13px;">${nextMsg}</p>
+    </div>`;
+  document.getElementById('geoInfo').style.display = 'none';
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  if (!el) return;
+  el.innerHTML = msg; el.className = 'status ' + type;
+}
+
+async function startCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    const video = document.getElementById('videoEl');
+    if (video) {
+      video.srcObject = videoStream;
+      document.getElementById('cameraHint').textContent = 'La foto se tomará automáticamente al registrar';
+    }
+  } catch(err) {
+    const h = document.getElementById('cameraHint');
+    if (h) h.textContent = '⚠️ Activa la cámara en tu navegador para continuar';
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('videoEl');
+  const canvas = document.getElementById('canvasEl');
+  if (!video?.srcObject) return null;
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 240;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.7);
+}
+
+function stopCamera() {
+  if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+}
+
+async function submitRecord(type, label) {
+  const empId = document.getElementById('empSelect').value;
+  const pin   = document.getElementById('pinInput').value.trim();
+
+  if (!empId) { showStatus('⚠️ Selecciona tu nombre de la lista.', 'error'); return; }
+  if (!pin)   { showStatus('⚠️ Ingresa tu PIN de 4 dígitos.', 'error'); return; }
+
+  const employee = EMPLOYEES.find(e => e.id === empId);
+  if (!employee || String(employee.pin) !== String(pin)) {
+    showStatus('❌ PIN incorrecto. Intenta de nuevo.', 'error');
+    document.getElementById('pinInput').value = ''; return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  showStatus('📍 Verificando ubicación GPS...', 'loading');
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude, longitude } = pos.coords;
+    const distance = getDistanceMeters(latitude, longitude, CONFIG.projectLat, CONFIG.projectLng);
+
+    if (distance > CONFIG.radiusMeters) {
+      showStatus(`❌ Estás a ${Math.round(distance)}m del proyecto. Necesitas estar a menos de ${CONFIG.radiusMeters}m.`, 'error');
+      btn.disabled = false; return;
+    }
+
+    showStatus('📸 Tomando foto...', 'loading');
+    const photo = capturePhoto();
+
+    if (photo) {
+      const preview = document.getElementById('photoPreview');
+      const video   = document.getElementById('videoEl');
+      if (preview && video) {
+        preview.src = photo;
+        preview.style.display = 'block';
+        video.style.display   = 'none';
+        const overlay = document.querySelector('.camera-overlay');
+        if (overlay) overlay.style.display = 'none';
+        document.getElementById('cameraHint').textContent = '✅ Foto capturada';
+      }
+      stopCamera();
+    }
+
+    showStatus('💾 Guardando registro...', 'loading');
+
+    const now     = new Date();
+    const payload = {
+      nombre: employee.nombre, tipo: type,
+      fecha: now.toLocaleDateString('es-MX'), hora: now.toLocaleTimeString('es-MX'),
+      latitud: latitude.toFixed(6), longitud: longitude.toFixed(6),
+      distancia: Math.round(distance), proyecto: CONFIG.projectName,
+      photo: photo || null
+    };
+
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      showStatus(`✅ ¡${label} registrada! Bienvenido, <strong>${employee.nombre}</strong>. ${payload.hora}`, 'success');
+      btn.disabled = false;
+      document.getElementById('pinInput').value   = '';
+      document.getElementById('empSelect').value  = '';
+    } catch(err) {
+      showStatus('❌ Error al guardar. Intenta de nuevo.', 'error');
+      btn.disabled = false;
+    }
+  }, () => {
+    showStatus('❌ No se pudo obtener tu ubicación. Activa el GPS en tu navegador.', 'error');
+    btn.disabled = false;
+  }, { timeout: 10000, maximumAge: 0 });
+}
+
+loadAll();
+</script>
+</body>
+</html>
