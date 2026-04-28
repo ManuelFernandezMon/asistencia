@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/admin.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin-aplipol.vercel.app"
+        }
+      ]
+    }
+  ]
+}
