@@ -524,6 +524,26 @@ if (sessionStorage.getItem('adminAuth') === 'ok') {
   document.getElementById('adminContent').style.display = 'block';
 }
 
+// ── SUPABASE ──────────────────────────────────────────────
+const SB_URL = "https://ucuxfhpncjhrbgbitveg.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjdXhmaHBuY2pocmJnYml0dmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDQxMzcsImV4cCI6MjA5Mjk4MDEzN30.M7GQL5tcQbN_BG7CghZp3Ny7GFaijvFL3ZYnrV4dDys";
+
+const sbHeaders = {
+  "Content-Type": "application/json",
+  "apikey": SB_KEY,
+  "Authorization": "Bearer " + SB_KEY
+};
+
+async function sbFetch(path, options = {}) {
+  try {
+    const res = await fetch(SB_URL + "/rest/v1/" + path, {
+      ...options,
+      headers: { ...sbHeaders, ...(options.headers || {}) }
+    });
+    return res.ok ? await res.json() : null;
+  } catch(e) { return null; }
+}
+
 // CONFIG
 let cfg = {
   scriptUrl: "", name: "Proyecto Principal",
@@ -568,7 +588,8 @@ async function saveConfig() {
   showMsg('saveMsg', '⏳ Enviando a Google Sheets...', 'ok');
 
   try {
-    await fetch(scriptUrl, {
+    // Guardar en Apps Script (→ Google Sheets)
+    fetch(scriptUrl, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -578,7 +599,26 @@ async function saveConfig() {
         salidaFrom: cfg.salidaFrom, salidaTo: cfg.salidaTo
       })
     });
-    showMsg('saveMsg', '✅ Configuración guardada correctamente.', 'ok');
+
+    // Guardar en Supabase (upsert por clave)
+    const configRows = [
+      { clave: 'projectName',  valor: String(cfg.name) },
+      { clave: 'projectLat',   valor: String(cfg.lat) },
+      { clave: 'projectLng',   valor: String(cfg.lng) },
+      { clave: 'radiusMeters', valor: String(cfg.radius) },
+      { clave: 'entradaFrom',  valor: String(cfg.entradaFrom) },
+      { clave: 'entradaTo',    valor: String(cfg.entradaTo) },
+      { clave: 'salidaFrom',   valor: String(cfg.salidaFrom) },
+      { clave: 'salidaTo',     valor: String(cfg.salidaTo) }
+    ];
+
+    await sbFetch("config?on_conflict=clave", {
+      method: 'POST',
+      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(configRows)
+    });
+
+    showMsg('saveMsg', '✅ Configuración guardada en Sheets y Supabase.', 'ok');
     generateQR();
     setTimeout(() => document.getElementById('saveMsg').style.display = 'none', 4000);
   } catch(err) {
@@ -628,6 +668,14 @@ function printQR() {
 let employees = [];
 
 async function loadEmployees() {
+  // Primero intenta Supabase
+  const sbEmp = await sbFetch("empleados?select=id,nombre,pin&activo=eq.true");
+  if (sbEmp && sbEmp.length > 0) {
+    employees = sbEmp;
+    renderEmployees();
+    return;
+  }
+  // Fallback: Apps Script
   if (!cfg.scriptUrl) { renderEmployees(); return; }
   try {
     const res  = await fetch(cfg.scriptUrl + '?action=getEmployees&t=' + Date.now());
@@ -685,10 +733,17 @@ async function addEmployee() {
   showMsg('empMsg', '⏳ Guardando...', 'ok');
 
   try {
-    await fetch(cfg.scriptUrl, {
+    // Guardar en Apps Script
+    fetch(cfg.scriptUrl, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'saveEmployee', id, nombre: name, pin })
+    });
+    // Guardar en Supabase
+    await sbFetch("empleados", {
+      method: 'POST',
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ id, nombre: name, pin, activo: true })
     });
     employees.push({ id, nombre: name, pin });
     renderEmployees();
@@ -704,10 +759,17 @@ async function addEmployee() {
 async function removeEmployee(id) {
   if (!confirm('¿Eliminar este empleado?')) return;
   try {
-    await fetch(cfg.scriptUrl, {
+    // Eliminar de Apps Script
+    fetch(cfg.scriptUrl, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'deleteEmployee', id })
+    });
+    // Eliminar de Supabase (marcar como inactivo)
+    await sbFetch("empleados?id=eq." + id, {
+      method: 'PATCH',
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ activo: false })
     });
     employees = employees.filter(e => e.id !== id);
     renderEmployees();
