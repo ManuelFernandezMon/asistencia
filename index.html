@@ -94,132 +94,55 @@
 const SCRIPT_URL = "PEGA_AQUI_TU_URL_DE_GOOGLE_APPS_SCRIPT";
 const SB_URL = "https://ucuxfhpncjhrbgbitveg.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjdXhmaHBuY2pocmJnYml0dmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDQxMzcsImV4cCI6MjA5Mjk4MDEzN30.M7GQL5tcQbN_BG7CghZp3Ny7GFaijvFL3ZYnrV4dDys";
-const sbH = {"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY};
+const sbH={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY};
 
-async function sbFetch(path, opts={}) {
-  try {
-    const r = await fetch(SB_URL+"/rest/v1/"+path, {...opts, headers:{...sbH,...(opts.headers||{})}});
-    return r.ok ? await r.json() : null;
-  } catch(e){ return null; }
+async function sbFetch(path,opts={}){
+  try{const r=await fetch(SB_URL+"/rest/v1/"+path,{...opts,headers:{...sbH,...(opts.headers||{})}});return r.ok?await r.json():null;}
+  catch(e){return null;}
 }
 
-// Obtener proyecto_id de la URL (?p=ID)
-function getProjectId() {
-  return new URLSearchParams(window.location.search).get('p');
-}
+let CONFIG={projectName:"Proyecto",projectLat:9.011377,projectLng:-79.534556,radiusMeters:150,
+  schedules:[{label:"Entrada",from:6,to:9,type:"entrada"},{label:"Salida",from:16,to:19,type:"salida"}]};
+let EMPLOYEES=[];
+let videoStream=null;
 
-let CONFIG = {
-  projectId: null, projectName:"Proyecto", projectLat:9.011377, projectLng:-79.534556,
-  radiusMeters:150,
-  schedules:[
-    {label:"Entrada",from:6,to:9,type:"entrada"},
-    {label:"Salida",from:16,to:19,type:"salida"}
-  ]
-};
-let EMPLOYEES = [];
-let videoStream = null;
+function updateClock(){document.getElementById('clockDisplay').textContent=new Date().toLocaleString('es-MX',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+updateClock();setInterval(updateClock,1000);
 
-function updateClock(){
-  document.getElementById('clockDisplay').textContent =
-    new Date().toLocaleString('es-MX',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-}
-updateClock(); setInterval(updateClock,1000);
-
-async function loadAll() {
-  const projId = getProjectId();
-  CONFIG.projectId = projId;
-
-  // Cargar proyecto específico si hay ID en URL
-  if (projId) {
-    const proj = await sbFetch(`proyectos?id=eq.${projId}&select=*`);
-    if (proj && proj[0]) {
-      const p = proj[0];
-      CONFIG.projectName  = p.nombre;
-      CONFIG.projectLat   = parseFloat(p.lat);
-      CONFIG.projectLng   = parseFloat(p.lng);
-      CONFIG.radiusMeters = p.radio;
-      CONFIG.schedules    = [
-        {label:"Entrada",from:p.entrada_from,to:p.entrada_to,type:"entrada"},
-        {label:"Salida", from:p.salida_from, to:p.salida_to, type:"salida"}
+async function loadAll(){
+  const[sbCfg,sbEmp]=await Promise.all([sbFetch("config?select=clave,valor"),sbFetch("empleados?select=id,nombre,pin&activo=eq.true")]);
+  if(sbCfg&&sbCfg.length>0){
+    const map={};sbCfg.forEach(r=>map[r.clave]=r.valor);
+    if(map.projectName){
+      CONFIG.projectName=map.projectName;CONFIG.projectLat=parseFloat(map.projectLat);
+      CONFIG.projectLng=parseFloat(map.projectLng);CONFIG.radiusMeters=parseFloat(map.radiusMeters);
+      CONFIG.schedules=[
+        {label:"Entrada",from:parseFloat(map.entradaFrom),to:parseFloat(map.entradaTo),type:"entrada"},
+        {label:"Salida",from:parseFloat(map.salidaFrom),to:parseFloat(map.salidaTo),type:"salida"}
       ];
     }
-    // Cargar empleados de este proyecto (propios + sin proyecto asignado)
-    const emps = await sbFetch(`empleados?select=id,nombre,pin,proyecto_id&activo=eq.true`);
-    EMPLOYEES = (emps||[]).filter(e => !e.proyecto_id || e.proyecto_id === projId);
-  } else {
-    // Sin proyecto en URL — cargar config general de Supabase
-    const cfgData = await sbFetch("config?select=clave,valor");
-    if (cfgData && cfgData.length > 0) {
-      const map = {};
-      cfgData.forEach(r=>map[r.clave]=r.valor);
-      if (map.projectName) {
-        CONFIG.projectName  = map.projectName;
-        CONFIG.projectLat   = parseFloat(map.projectLat);
-        CONFIG.projectLng   = parseFloat(map.projectLng);
-        CONFIG.radiusMeters = parseFloat(map.radiusMeters);
-        CONFIG.schedules    = [
-          {label:"Entrada",from:parseFloat(map.entradaFrom),to:parseFloat(map.entradaTo),type:"entrada"},
-          {label:"Salida", from:parseFloat(map.salidaFrom), to:parseFloat(map.salidaTo), type:"salida"}
-        ];
-      }
-    }
-    const emps = await sbFetch("empleados?select=id,nombre,pin&activo=eq.true");
-    EMPLOYEES = emps || [];
   }
-
-  document.getElementById('projectName').textContent = CONFIG.projectName;
+  EMPLOYEES=sbEmp||[];
+  document.getElementById('projectName').textContent=CONFIG.projectName;
   renderPage();
 }
 
-function getActiveSchedule(){
-  const h = new Date().getHours()+new Date().getMinutes()/60;
-  return CONFIG.schedules.find(s=>h>=s.from&&h<s.to)||null;
-}
+function getActiveSchedule(){const h=new Date().getHours()+new Date().getMinutes()/60;return CONFIG.schedules.find(s=>h>=s.from&&h<s.to)||null;}
+function getDistanceMeters(lat1,lng1,lat2,lng2){const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 
-function getDistanceMeters(lat1,lng1,lat2,lng2){
-  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
-  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-
-function renderPage(){
-  const schedule=getActiveSchedule();
-  if(schedule){renderForm(schedule);document.getElementById('geoInfo').style.display='block';}
-  else renderClosed();
-}
+function renderPage(){const s=getActiveSchedule();if(s){renderForm(s);document.getElementById('geoInfo').style.display='block';}else renderClosed();}
 
 function renderForm(schedule){
-  const empOptions = EMPLOYEES.length
-    ? EMPLOYEES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('')
-    : '<option value="">— Sin empleados registrados —</option>';
+  const opts=EMPLOYEES.length?EMPLOYEES.map(e=>`<option value="${e.id}">${e.nombre}</option>`).join(''):'<option value="">— Sin empleados —</option>';
   document.getElementById('mainCard').innerHTML=`
-    <div class="schedule-badge">
-      <div class="badge-dot"></div>
-      <div class="badge-text">
-        <div class="badge-label">Ventana activa</div>
-        <div class="badge-val">${schedule.label} · ${schedule.from}:00 – ${schedule.to}:00 hrs</div>
-      </div>
-    </div>
-    <div class="field">
-      <div class="field-label">👤 Nombre</div>
-      <select id="empSelect"><option value="">Selecciona tu nombre</option>${empOptions}</select>
-    </div>
-    <div class="field">
-      <div class="field-label">🔑 PIN de acceso</div>
-      <input type="password" id="pinInput" placeholder="••••" maxlength="4" inputmode="numeric">
-    </div>
-    <div class="field">
-      <div class="field-label">📸 Selfie de verificación</div>
-      <div class="camera-wrap">
-        <video id="videoEl" autoplay playsinline></video>
-        <img class="photo-preview" id="photoPreview"/>
-        <div class="camera-overlay"><div class="camera-corners"><div class="corner-br"></div><div class="corner-bl"></div></div></div>
-      </div>
-      <div class="camera-hint" id="cameraHint">Iniciando cámara frontal...</div>
-    </div>
-    <button class="btn-main" id="submitBtn" onclick="submitRecord('${schedule.type}','${schedule.label}')">
-      Registrar ${schedule.label}
-    </button>
+    <div class="schedule-badge"><div class="badge-dot"></div><div class="badge-text"><div class="badge-label">Ventana activa</div><div class="badge-val">${schedule.label} · ${schedule.from}:00 – ${schedule.to}:00 hrs</div></div></div>
+    <div class="field"><div class="field-label">👤 Nombre</div><select id="empSelect"><option value="">Selecciona tu nombre</option>${opts}</select></div>
+    <div class="field"><div class="field-label">🔑 PIN de acceso</div><input type="password" id="pinInput" placeholder="••••" maxlength="4" inputmode="numeric"></div>
+    <div class="field"><div class="field-label">📸 Selfie de verificación</div>
+      <div class="camera-wrap"><video id="videoEl" autoplay playsinline></video><img class="photo-preview" id="photoPreview"/>
+        <div class="camera-overlay"><div class="camera-corners"><div class="corner-br"></div><div class="corner-bl"></div></div></div></div>
+      <div class="camera-hint" id="cameraHint">Iniciando cámara frontal...</div></div>
+    <button class="btn-main" id="submitBtn" onclick="submitRecord('${schedule.type}','${schedule.label}')">Registrar ${schedule.label}</button>
     <div class="status" id="statusMsg"></div>`;
   startCamera();
 }
@@ -228,83 +151,53 @@ function renderClosed(){
   const h=new Date().getHours()+new Date().getMinutes()/60;
   const next=CONFIG.schedules.filter(s=>s.from>h).sort((a,b)=>a.from-b.from)[0];
   const msg=next?`Próxima ventana: <strong>${next.label}</strong> a las <strong>${next.from}:00 hrs</strong>`:'No hay más ventanas disponibles hoy.';
-  document.getElementById('mainCard').innerHTML=`
-    <div class="closed-card">
-      <div class="closed-icon">🔒</div>
-      <h2>Registro Cerrado</h2>
-      <p>No hay registro disponible<br>fuera del horario permitido.</p>
-      <p style="margin-top:14px;font-size:13px;">${msg}</p>
-    </div>`;
+  document.getElementById('mainCard').innerHTML=`<div class="closed-card"><div class="closed-icon">🔒</div><h2>Registro Cerrado</h2><p>No hay registro disponible<br>fuera del horario permitido.</p><p style="margin-top:14px;font-size:13px;">${msg}</p></div>`;
   document.getElementById('geoInfo').style.display='none';
 }
 
-function showStatus(msg,type){
-  const el=document.getElementById('statusMsg');
-  if(!el)return; el.innerHTML=msg; el.className='status '+type;
-}
+function showStatus(msg,type){const el=document.getElementById('statusMsg');if(!el)return;el.innerHTML=msg;el.className='status '+type;}
 
 async function startCamera(){
-  try{
-    videoStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
-    const v=document.getElementById('videoEl');
-    if(v){v.srcObject=videoStream;document.getElementById('cameraHint').textContent='La foto se tomará automáticamente al registrar';}
-  }catch(e){
-    const h=document.getElementById('cameraHint');
-    if(h)h.textContent='⚠️ Activa la cámara en tu navegador para continuar';
-  }
+  try{videoStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});const v=document.getElementById('videoEl');if(v){v.srcObject=videoStream;document.getElementById('cameraHint').textContent='La foto se tomará automáticamente al registrar';}}
+  catch(e){const h=document.getElementById('cameraHint');if(h)h.textContent='⚠️ Activa la cámara en tu navegador para continuar';}
 }
 
 function capturePhoto(){
-  const video=document.getElementById('videoEl');
-  const canvas=document.getElementById('canvasEl');
-  if(!video?.srcObject)return null;
-  canvas.width=video.videoWidth||320;canvas.height=video.videoHeight||240;
-  const ctx=canvas.getContext('2d');
-  ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(video,0,0);
-  return canvas.toDataURL('image/jpeg',0.7);
+  const v=document.getElementById('videoEl'),c=document.getElementById('canvasEl');
+  if(!v?.srcObject)return null;
+  c.width=v.videoWidth||320;c.height=v.videoHeight||240;
+  const ctx=c.getContext('2d');ctx.translate(c.width,0);ctx.scale(-1,1);ctx.drawImage(v,0,0);
+  return c.toDataURL('image/jpeg',0.7);
 }
 
-function stopCamera(){
-  if(videoStream){videoStream.getTracks().forEach(t=>t.stop());videoStream=null;}
-}
+function stopCamera(){if(videoStream){videoStream.getTracks().forEach(t=>t.stop());videoStream=null;}}
 
 async function submitRecord(type,label){
   const empId=document.getElementById('empSelect').value;
   const pin=document.getElementById('pinInput').value.trim();
-  if(!empId){showStatus('⚠️ Selecciona tu nombre de la lista.','error');return;}
-  if(!pin){showStatus('⚠️ Ingresa tu PIN de 4 dígitos.','error');return;}
+  if(!empId){showStatus('⚠️ Selecciona tu nombre.','error');return;}
+  if(!pin){showStatus('⚠️ Ingresa tu PIN.','error');return;}
   const employee=EMPLOYEES.find(e=>e.id===empId);
-  if(!employee||String(employee.pin)!==String(pin)){
-    showStatus('❌ PIN incorrecto. Intenta de nuevo.','error');
-    document.getElementById('pinInput').value='';return;
-  }
-  const btn=document.getElementById('submitBtn');
-  btn.disabled=true;
+  if(!employee||String(employee.pin)!==String(pin)){showStatus('❌ PIN incorrecto.','error');document.getElementById('pinInput').value='';return;}
+
+  const btn=document.getElementById('submitBtn');btn.disabled=true;
   showStatus('📍 Verificando ubicación GPS...','loading');
 
   navigator.geolocation.getCurrentPosition(async(pos)=>{
     const{latitude,longitude}=pos.coords;
     const distance=getDistanceMeters(latitude,longitude,CONFIG.projectLat,CONFIG.projectLng);
-    if(distance>CONFIG.radiusMeters){
-      showStatus(`❌ Estás a ${Math.round(distance)}m del proyecto. Necesitas estar a menos de ${CONFIG.radiusMeters}m.`,'error');
-      btn.disabled=false;return;
-    }
+    if(distance>CONFIG.radiusMeters){showStatus(`❌ Estás a ${Math.round(distance)}m del proyecto. Necesitas estar a menos de ${CONFIG.radiusMeters}m.`,'error');btn.disabled=false;return;}
+
     showStatus('📸 Tomando foto...','loading');
     const photo=capturePhoto();
     if(photo){
-      const preview=document.getElementById('photoPreview');
-      const video=document.getElementById('videoEl');
-      if(preview&&video){
-        preview.src=photo;preview.style.display='block';video.style.display='none';
-        const overlay=document.querySelector('.camera-overlay');
-        if(overlay)overlay.style.display='none';
-        document.getElementById('cameraHint').textContent='✅ Foto capturada';
-      }
+      const preview=document.getElementById('photoPreview'),video=document.getElementById('videoEl');
+      if(preview&&video){preview.src=photo;preview.style.display='block';video.style.display='none';const ov=document.querySelector('.camera-overlay');if(ov)ov.style.display='none';document.getElementById('cameraHint').textContent='✅ Foto capturada';}
       stopCamera();
     }
+
     showStatus('💾 Guardando registro...','loading');
 
-    // Subir foto a Supabase Storage
     let fotoUrl=null;
     if(photo){
       try{
@@ -314,44 +207,29 @@ async function submitRecord(type,label){
         const blob=new Blob([arr],{type:'image/jpeg'});
         const fileName=`${employee.nombre}_${Date.now()}.jpg`.replace(/\s+/g,'_');
         const up=await fetch(`${SB_URL}/storage/v1/object/fotos-asistencia/${fileName}`,{
-          method:'POST',
-          headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'true'},
-          body:blob
+          method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'true'},body:blob
         });
         if(up.ok)fotoUrl=`${SB_URL}/storage/v1/object/public/fotos-asistencia/${fileName}`;
       }catch(e){}
     }
 
     const now=new Date();
-    const payload={
-      nombre:employee.nombre,tipo:type,
-      fecha:now.toLocaleDateString('es-MX'),hora:now.toLocaleTimeString('es-MX'),
-      latitud:latitude.toFixed(6),longitud:longitude.toFixed(6),
-      distancia:Math.round(distance),proyecto:CONFIG.projectName,
-      photo:photo||null
-    };
+    const payload={nombre:employee.nombre,tipo:type,fecha:now.toLocaleDateString('es-MX'),hora:now.toLocaleTimeString('es-MX'),latitud:latitude.toFixed(6),longitud:longitude.toFixed(6),distancia:Math.round(distance),proyecto:CONFIG.projectName,photo:photo||null};
 
-    // Guardar en Apps Script
     fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
 
-    // Guardar en Supabase
-    await sbFetch("asistencia",{
-      method:'POST',headers:{"Prefer":"return=minimal"},
-      body:JSON.stringify({
-        proyecto:payload.proyecto,nombre:payload.nombre,tipo:payload.tipo,
-        fecha:payload.fecha,hora:payload.hora,latitud:payload.latitud,
-        longitud:payload.longitud,distancia:payload.distancia,
-        foto_url:fotoUrl, proyecto_id:CONFIG.projectId||null
-      })
-    });
+    await sbFetch("asistencia",{method:'POST',headers:{"Prefer":"return=minimal"},body:JSON.stringify({
+      proyecto:payload.proyecto,nombre:payload.nombre,tipo:payload.tipo,
+      fecha:payload.fecha,hora:payload.hora,latitud:payload.latitud,
+      longitud:payload.longitud,distancia:payload.distancia,foto_url:fotoUrl
+    })});
 
     showStatus(`✅ ¡${label} registrada! Bienvenido, <strong>${employee.nombre}</strong>. ${payload.hora}`,'success');
     btn.disabled=false;
     document.getElementById('pinInput').value='';
     document.getElementById('empSelect').value='';
   },()=>{
-    showStatus('❌ No se pudo obtener tu ubicación. Activa el GPS en tu navegador.','error');
-    btn.disabled=false;
+    showStatus('❌ No se pudo obtener tu ubicación.','error');btn.disabled=false;
   },{timeout:10000,maximumAge:0});
 }
 
