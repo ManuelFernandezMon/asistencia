@@ -120,6 +120,18 @@ async function loadAll(){
           {label:"Entrada",from:p.entrada_from,to:p.entrada_to,type:"entrada"},
           {label:"Salida",from:p.salida_from,to:p.salida_to,type:"salida"}
         ];
+        // Update icon
+        const mark=document.querySelector('.brand-mark');
+        if(mark){
+          if(p.icon_url){
+            mark.style.backgroundImage='url('+p.icon_url+')';
+            mark.style.backgroundSize='cover';
+            mark.style.backgroundPosition='center';
+            mark.textContent='';
+          } else {
+            mark.textContent=p.icon_emoji||'🏗️';
+          }
+        }
       }
       // Empleados: propios del proyecto + asignados via tabla intermedia (sin incluir los sin proyecto)
       const assigns = await sbFetch(`empleados_proyectos?proyecto_id=eq.${projId}&select=empleado_id`).catch(()=>[]);
