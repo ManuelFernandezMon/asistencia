@@ -121,8 +121,10 @@ async function loadAll(){
           {label:"Salida",from:p.salida_from,to:p.salida_to,type:"salida"}
         ];
       }
-      // Empleados del proyecto + sin proyecto asignado
-      EMPLOYEES=(emps||[]).filter(e=>!e.proyecto_id||e.proyecto_id===projId);
+      // Empleados: propios del proyecto + sin proyecto + asignados via tabla intermedia
+      const assigns = await sbFetch(`empleados_proyectos?proyecto_id=eq.${projId}&select=empleado_id`).catch(()=>[]);
+      const assignedIds = (assigns||[]).map(a=>a.empleado_id);
+      EMPLOYEES=(emps||[]).filter(e=>!e.proyecto_id||e.proyecto_id===projId||assignedIds.includes(e.id));
     } else {
       // Sin proyecto en URL — config general
       const[cfg,emps]=await Promise.all([
