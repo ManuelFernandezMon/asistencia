@@ -83,6 +83,9 @@
   .msg.loading{background:rgba(255,77,0,0.06);color:var(--orange2);border:1px solid rgba(255,77,0,0.2);display:block;}
 
   /* PROYECTOS */
+  .emoji-btn{background:var(--raised);border:1px solid var(--border2);border-radius:8px;padding:6px;font-size:20px;cursor:pointer;transition:border-color 0.2s,transform 0.1s;line-height:1;}
+  .emoji-btn:hover{border-color:var(--orange);transform:scale(1.1);}
+  .emoji-btn.selected{border-color:var(--orange);background:rgba(255,77,0,0.1);}
   .proj-list{display:flex;flex-direction:column;gap:10px;min-height:80px;}
   .proj-item{background:var(--raised);border:1px solid var(--border2);border-radius:14px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;transition:border-color 0.2s,background 0.2s;}
   .proj-item:hover{border-color:rgba(255,77,0,0.4);}
@@ -176,6 +179,43 @@
           <div class="section-title" id="projFormLabel">Nuevo proyecto</div>
           <div class="card" style="margin-bottom:0">
             <input type="hidden" id="editingProjId">
+            <input type="hidden" id="pIconUrl">
+            <input type="hidden" id="pIconEmoji" value="🏗️">
+
+            <div class="field">
+              <label>Ícono del proyecto</label>
+              <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
+                <div id="iconPreview" style="width:52px;height:52px;background:linear-gradient(135deg,var(--orange),var(--orange2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;overflow:hidden;">🏗️</div>
+                <div>
+                  <div style="font-size:12px;color:var(--sub);margin-bottom:8px;">Elige emoji o sube imagen</div>
+                  <input type="file" id="pIconFile" accept="image/*" style="display:none;" onchange="previewIconImage(event)">
+                  <button class="btn-sm" onclick="document.getElementById('pIconFile').click()">📁 Subir imagen</button>
+                </div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <button class="emoji-btn" onclick="selectEmoji('🏗️')">🏗️</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏠')">🏠</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏢')">🏢</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏭')">🏭</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏡')">🏡</button>
+                <button class="emoji-btn" onclick="selectEmoji('🔨')">🔨</button>
+                <button class="emoji-btn" onclick="selectEmoji('⚒️')">⚒️</button>
+                <button class="emoji-btn" onclick="selectEmoji('🧱')">🧱</button>
+                <button class="emoji-btn" onclick="selectEmoji('🪵')">🪵</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏰')">🏰</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏬')">🏬</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏦')">🏦</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏥')">🏥</button>
+                <button class="emoji-btn" onclick="selectEmoji('🌆')">🌆</button>
+                <button class="emoji-btn" onclick="selectEmoji('🌇')">🌇</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏗')">🏗</button>
+                <button class="emoji-btn" onclick="selectEmoji('🛖')">🛖</button>
+                <button class="emoji-btn" onclick="selectEmoji('🏚️')">🏚️</button>
+                <button class="emoji-btn" onclick="selectEmoji('🌃')">🌃</button>
+                <button class="emoji-btn" onclick="selectEmoji('🌉')">🌉</button>
+              </div>
+            </div>
+
             <div class="field"><label>Nombre del proyecto</label><input type="text" id="pNombre" placeholder="Ej: Torre Residencial Norte"></div>
             <div class="field"><label>URL del checkin</label><input type="url" id="pUrl" placeholder="https://asistencia-eosin.vercel.app/index.html"></div>
             <div class="field"><label>Coordenadas GPS</label><div class="row-2"><input type="number" id="pLat" placeholder="Latitud" step="0.000001"><input type="number" id="pLng" placeholder="Longitud" step="0.000001"></div></div>
@@ -345,7 +385,9 @@ function renderProjects(){
   list.innerHTML=projects.map(p=>`
     <div class="proj-item${selectedProjId===p.id?' selected':''}" id="proj-${p.id}" onclick="selectProject('${p.id}')">
       <div class="proj-left">
-        <div class="proj-avatar">🏗️</div>
+        <div class="proj-avatar" style="${p.icon_url?'background-image:url('+p.icon_url+');background-size:cover;background-position:center;background:none;':''}">
+          ${p.icon_url?'':p.icon_emoji||'🏗️'}
+        </div>
         <div>
           <div class="proj-name">${p.nombre}</div>
           <div class="proj-meta">Entrada ${p.entrada_from}:00–${p.entrada_to}:00 · Salida ${p.salida_from}:00–${p.salida_to}:00 · ${p.radio}m</div>
@@ -388,6 +430,44 @@ function printProjectQR(){
   win.document.close();
 }
 
+function selectEmoji(emoji){
+  document.getElementById('pIconEmoji').value = emoji;
+  document.getElementById('pIconUrl').value = '';
+  const prev = document.getElementById('iconPreview');
+  prev.textContent = emoji;
+  prev.style.backgroundImage = '';
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
+  event.target.classList.add('selected');
+}
+
+async function previewIconImage(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const prev = document.getElementById('iconPreview');
+  // Show preview immediately
+  const reader = new FileReader();
+  reader.onload = ev => {
+    prev.textContent = '';
+    prev.style.cssText = 'width:52px;height:52px;border-radius:14px;overflow:hidden;flex-shrink:0;background-image:url('+ev.target.result+');background-size:cover;background-position:center;';
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('pIconEmoji').value = '';
+}
+
+async function uploadProjectIcon(file, projId){
+  try{
+    const ext = file.name.split('.').pop();
+    const fn = `project_${projId}.${ext}`;
+    const up = await fetch(`${SB_URL}/storage/v1/object/project-icons/${fn}`, {
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':file.type,'x-upsert':'true'},
+      body: file
+    });
+    if(up.ok) return `${SB_URL}/storage/v1/object/public/project-icons/${fn}`;
+    return null;
+  }catch(e){ return null; }
+}
+
 async function saveProject(){
   const nombre=document.getElementById('pNombre').value.trim();
   const url=document.getElementById('pUrl').value.trim();
@@ -405,15 +485,27 @@ async function saveProject(){
   btn.disabled=true; btn.textContent='Guardando...';
   setMsg('projMsg','⏳ Guardando en Supabase...','loading');
 
-  const payload={nombre,checkin_url:url,lat:String(lat),lng:String(lng),radio,entrada_from:ef,entrada_to:et,salida_from:sf,salida_to:st,activo:true};
   const editId=document.getElementById('editingProjId').value;
+  const projId = editId || Date.now().toString();
+
+  // Handle icon
+  let iconEmoji = document.getElementById('pIconEmoji').value || '🏗️';
+  let iconUrl   = document.getElementById('pIconUrl').value || null;
+  const iconFile = document.getElementById('pIconFile').files[0];
+  if(iconFile){
+    setMsg('projMsg','⏳ Subiendo imagen...','loading');
+    const uploaded = await uploadProjectIcon(iconFile, projId);
+    if(uploaded){ iconUrl = uploaded; iconEmoji = ''; }
+  }
+
+  const payload={nombre,checkin_url:url,lat:String(lat),lng:String(lng),radio,entrada_from:ef,entrada_to:et,salida_from:sf,salida_to:st,activo:true,icon_emoji:iconEmoji,icon_url:iconUrl};
 
   try{
     if(editId){
       await sb(`proyectos?id=eq.${editId}`,{method:'PATCH',headers:{"Prefer":"return=representation"},body:JSON.stringify(payload)});
       setMsg('projMsg','✅ Proyecto actualizado correctamente.','ok');
     } else {
-      payload.id=Date.now().toString();
+      payload.id=projId;
       await sb("proyectos",{method:'POST',headers:{"Prefer":"return=representation"},body:JSON.stringify(payload)});
       setMsg('projMsg','✅ Proyecto creado correctamente.','ok');
     }
@@ -437,6 +529,20 @@ function editProject(id){
   document.getElementById('pET').value=p.entrada_to;
   document.getElementById('pSF').value=p.salida_from;
   document.getElementById('pST').value=p.salida_to;
+  // Restore icon
+  const prev=document.getElementById('iconPreview');
+  if(p.icon_url){
+    prev.textContent='';
+    prev.style.cssText='width:52px;height:52px;border-radius:14px;overflow:hidden;flex-shrink:0;background-image:url('+p.icon_url+');background-size:cover;background-position:center;';
+    document.getElementById('pIconUrl').value=p.icon_url;
+    document.getElementById('pIconEmoji').value='';
+  } else {
+    const em=p.icon_emoji||'🏗️';
+    prev.textContent=em;
+    prev.style.cssText='width:52px;height:52px;background:linear-gradient(135deg,var(--orange),var(--orange2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;overflow:hidden;';
+    document.getElementById('pIconEmoji').value=em;
+    document.getElementById('pIconUrl').value='';
+  }
   document.getElementById('projFormLabel').textContent='Editar proyecto';
   document.getElementById('projSaveBtn').textContent='Guardar Cambios';
   document.getElementById('projCancelBtn').style.display='block';
@@ -447,6 +553,13 @@ function cancelEdit(){
   ['pNombre','pUrl','pLat','pLng'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('pRadio').value='150';
   ['pEF','pET','pSF','pST'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pIconEmoji').value='🏗️';
+  document.getElementById('pIconUrl').value='';
+  document.getElementById('pIconFile').value='';
+  const prev=document.getElementById('iconPreview');
+  prev.textContent='🏗️';
+  prev.style.cssText='width:52px;height:52px;background:linear-gradient(135deg,var(--orange),var(--orange2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;overflow:hidden;';
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('selected'));
   document.getElementById('projFormLabel').textContent='Nuevo proyecto';
   document.getElementById('projSaveBtn').textContent='Crear Proyecto';
   document.getElementById('projCancelBtn').style.display='none';
