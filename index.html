@@ -232,10 +232,10 @@ async function submit(type,label){
         for(let i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);
         const blob=new Blob([arr],{type:'image/jpeg'});
         const fn=`${emp.nombre}_${Date.now()}.jpg`.replace(/\s+/g,'_');
-        const up=await fetch(`${SB_URL}/storage/v1/object/fotos-asistencia/${fn}`,{
+        const up=await fetch(`${SB_URL}/storage/v1/object/FOTOS-ASISTENCIA/${fn}`,{
           method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'image/jpeg','x-upsert':'true'},body:blob
         });
-        if(up.ok)fotoUrl=`${SB_URL}/storage/v1/object/public/fotos-asistencia/${fn}`;
+        if(up.ok)fotoUrl=`${SB_URL}/storage/v1/object/public/FOTOS-ASISTENCIA/${fn}`;
       }catch(e){}
     }
 
