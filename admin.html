@@ -206,24 +206,48 @@
     <div class="tab-content" id="tab-empleados">
       <div class="section-title">Gestión de empleados</div>
 
-      <div class="card">
-        <div class="field">
-          <label>Filtrar por proyecto</label>
-          <select id="empProjFilter" onchange="renderEmployees()">
-            <option value="">— Todos los proyectos —</option>
-          </select>
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="field" style="margin:0">
+              <label>Filtrar por proyecto</label>
+              <select id="empProjFilter" onchange="renderEmployees()">
+                <option value="">— Todos los proyectos —</option>
+              </select>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-icon">👷</div><div class="card-title">Empleados</div></div>
+            <div class="emp-add-row">
+              <div class="field" style="margin:0"><label>Nombre completo</label><input type="text" id="empName" placeholder="Ej: Juan García López"></div>
+              <div class="field" style="margin:0"><label>PIN (4 dígitos)</label><input type="password" id="empPin" placeholder="••••" maxlength="4" inputmode="numeric"></div>
+              <button class="btn-add-emp" onclick="addEmployee()">+ Agregar</button>
+            </div>
+            <div class="emp-msg" id="empMsg"></div>
+            <div class="emp-list" id="empList"><div class="emp-empty">Cargando empleados...</div></div>
+          </div>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-header"><div class="card-icon">👷</div><div class="card-title">Empleados</div></div>
-        <div class="emp-add-row">
-          <div class="field" style="margin:0"><label>Nombre completo</label><input type="text" id="empName" placeholder="Ej: Juan García López"></div>
-          <div class="field" style="margin:0"><label>PIN (4 dígitos)</label><input type="password" id="empPin" placeholder="••••" maxlength="4" inputmode="numeric"></div>
-          <button class="btn-add-emp" onclick="addEmployee()">+ Agregar</button>
+        <div>
+          <div class="section-title">Asignar a proyecto</div>
+          <div class="card">
+            <div class="card-header"><div class="card-icon">🔗</div><div class="card-title">Asignar empleado existente</div></div>
+            <div class="field">
+              <label>Empleado</label>
+              <select id="assignEmpSelect"><option value="">— Selecciona un empleado —</option></select>
+            </div>
+            <div class="field">
+              <label>Proyecto</label>
+              <select id="assignProjSelect"><option value="">— Selecciona un proyecto —</option></select>
+            </div>
+            <button class="btn-primary" onclick="assignEmployeeToProject()">Asignar</button>
+            <div class="msg" id="assignMsg"></div>
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+              <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--sub);margin-bottom:12px;">Asignaciones actuales</div>
+              <div id="assignList"><div class="emp-empty">Cargando...</div></div>
+            </div>
+          </div>
         </div>
-        <div class="emp-msg" id="empMsg"></div>
-        <div class="emp-list" id="empList"><div class="emp-empty">Cargando empleados...</div></div>
       </div>
     </div>
 
@@ -443,16 +467,34 @@ function populateProjFilter(){
   sel.innerHTML='<option value="">— Todos los proyectos —</option>';
   projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.nombre;sel.appendChild(o);});
   sel.value=cur;
+
+  // Populate assign selects
+  const ae=document.getElementById('assignEmpSelect');
+  const ap=document.getElementById('assignProjSelect');
+  if(ae){
+    ae.innerHTML='<option value="">— Selecciona un empleado —</option>';
+    employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=e.nombre;ae.appendChild(o);});
+  }
+  if(ap){
+    ap.innerHTML='<option value="">— Selecciona un proyecto —</option>';
+    projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.nombre;ap.appendChild(o);});
+  }
 }
 
 // ── EMPLEADOS ────────────────────────────────────────────────────
-let employees=[];
+let employees=[], assignments=[];
 
 async function loadEmployees(){
   try{
-    const data=await sb("empleados?select=id,nombre,pin,proyecto_id&activo=eq.true&order=created_at.asc");
-    employees=data||[];
+    const [emps, assigns] = await Promise.all([
+      sb("empleados?select=id,nombre,pin,proyecto_id&activo=eq.true&order=created_at.asc"),
+      sb("empleados_proyectos?select=id,empleado_id,proyecto_id")
+    ]);
+    employees=emps||[];
+    assignments=assigns||[];
     renderEmployees();
+    renderAssignments();
+    populateProjFilter();
   }catch(e){document.getElementById('empList').innerHTML='<div class="emp-empty">Error cargando empleados.</div>';}
 }
 
@@ -460,16 +502,24 @@ function getInitials(n){return n.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase(
 
 function renderEmployees(){
   const pid=document.getElementById('empProjFilter').value;
-  const list=pid?employees.filter(e=>e.proyecto_id===pid):employees;
+  // Include employees from proyecto_id AND from assignments table
+  const assignedToProj = pid ? assignments.filter(a=>a.proyecto_id===pid).map(a=>a.empleado_id) : [];
+  const list = pid
+    ? employees.filter(e=>e.proyecto_id===pid || assignedToProj.includes(e.id))
+    : employees;
   const el=document.getElementById('empList');
-  if(!list.length){el.innerHTML='<div class="emp-empty">No hay empleados. Agrega el primero arriba.</div>';return;}
+  if(!list.length){el.innerHTML='<div class="emp-empty">No hay empleados en este proyecto.</div>';return;}
   el.innerHTML=list.map(emp=>{
-    const proj=projects.find(p=>p.id===emp.proyecto_id);
+    // Get all projects for this employee
+    const mainProj=projects.find(p=>p.id===emp.proyecto_id);
+    const extraProjs=assignments.filter(a=>a.empleado_id===emp.id).map(a=>projects.find(p=>p.id===a.proyecto_id)).filter(Boolean);
+    const allProjs=[...(mainProj?[mainProj]:[]),...extraProjs.filter(p=>p.id!==emp.proyecto_id)];
+    const pills=allProjs.map(p=>`<span class="pill">${p.nombre}</span>`).join('');
     return `<div class="emp-row">
       <div class="emp-left">
         <div class="emp-avatar">${getInitials(emp.nombre)}</div>
         <div>
-          <div class="emp-name">${emp.nombre}${proj?`<span class="pill">${proj.nombre}</span>`:''}</div>
+          <div class="emp-name">${emp.nombre} ${pills}</div>
           <div class="emp-pin" id="pin-${emp.id}">PIN: ${'•'.repeat(emp.pin.length)}</div>
         </div>
       </div>
@@ -480,6 +530,54 @@ function renderEmployees(){
     </div>`;
   }).join('');
 }
+
+function renderAssignments(){
+  const el=document.getElementById('assignList');
+  if(!el)return;
+  if(!assignments.length){el.innerHTML='<div class="emp-empty">Sin asignaciones extra aún.</div>';return;}
+  el.innerHTML=assignments.map(a=>{
+    const emp=employees.find(e=>e.id===a.empleado_id);
+    const proj=projects.find(p=>p.id===a.proyecto_id);
+    if(!emp||!proj)return '';
+    return `<div class="emp-row" style="margin-bottom:6px;">
+      <div class="emp-left">
+        <div class="emp-avatar" style="width:28px;height:28px;font-size:11px;">${getInitials(emp.nombre)}</div>
+        <div style="font-size:13px;"><strong>${emp.nombre}</strong> → <span class="pill">${proj.nombre}</span></div>
+      </div>
+      <button class="btn-danger" onclick="removeAssignment(${a.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function assignEmployeeToProject(){
+  const empId=document.getElementById('assignEmpSelect').value;
+  const projId=document.getElementById('assignProjSelect').value;
+  if(!empId||!projId){setMsg('assignMsg','❌ Selecciona empleado y proyecto.','err');return;}
+  const already=assignments.find(a=>a.empleado_id===empId&&a.proyecto_id===projId);
+  if(already){setMsg('assignMsg','⚠️ Este empleado ya está en ese proyecto.','err');return;}
+  setMsg('assignMsg','⏳ Asignando...','loading');
+  try{
+    const res=await sb("empleados_proyectos",{method:'POST',headers:{"Prefer":"return=representation"},body:JSON.stringify({empleado_id:empId,proyecto_id:projId})});
+    assignments.push(res[0]||{id:Date.now(),empleado_id:empId,proyecto_id:projId});
+    renderAssignments();
+    renderEmployees();
+    document.getElementById('assignEmpSelect').value='';
+    document.getElementById('assignProjSelect').value='';
+    setMsg('assignMsg','✅ Empleado asignado correctamente.','ok');
+    setTimeout(()=>document.getElementById('assignMsg').style.display='none',3000);
+  }catch(e){setMsg('assignMsg','❌ Error: '+e.message,'err');}
+}
+
+async function removeAssignment(id){
+  if(!confirm('¿Quitar esta asignación?'))return;
+  try{
+    await sb(`empleados_proyectos?id=eq.${id}`,{method:'DELETE',headers:{"Prefer":"return=minimal"}});
+    assignments=assignments.filter(a=>a.id!==id);
+    renderAssignments();
+    renderEmployees();
+  }catch(e){alert('Error: '+e.message);}
+}
+
 
 function togglePin(id,pin){
   const el=document.getElementById('pin-'+id),btn=document.getElementById('eye-'+id);
