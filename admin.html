@@ -811,6 +811,7 @@ async function initAdmin(){
   loadSettings();
   await loadProjects();
   await loadEmployees();
+  populateProjFilter();
   updateClock();
   setInterval(updateClock,1000);
 }
